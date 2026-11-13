@@ -48,6 +48,10 @@
 .chapter-analysis .importance-track{background:var(--panel3);box-shadow:inset 0 0 0 1px var(--analysis-grid)}
 .chapter-analysis .importance-fill{background:linear-gradient(90deg,var(--importance-a) 0%,var(--importance-b) 35%,var(--importance-c) 68%,var(--importance-d) 100%)}
 .chapter-analysis-link{display:inline;text-align:left;padding:0;border:0;background:transparent;color:var(--accent);font:inherit;font-size:14px;font-weight:650;line-height:1.45;cursor:pointer;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px}.chapter-analysis-link:hover,.chapter-analysis-link:focus-visible{text-decoration-color:currentColor;color:var(--text)}
+/* Briefly highlight a chapter card when selected from All-Chapter Analysis. */
+.chapter-card.is-highlighted{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 28%,transparent),0 0 28px color-mix(in srgb,var(--accent) 38%,transparent);animation:chapter-card-highlight 1.7s ease-out}
+@keyframes chapter-card-highlight{0%,18%{background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 22%,var(--panel)),color-mix(in srgb,var(--accent) 12%,var(--panel2)))}100%{background:linear-gradient(145deg,var(--panel),var(--panel2))}}
+@media(prefers-reduced-motion:reduce){.chapter-card.is-highlighted{animation:none;box-shadow:0 0 0 3px var(--accent)}}
 @media(max-width:700px){.analysis-table th,.analysis-table td{padding:9px 10px}.analysis-table td:nth-child(2){font-size:13px}.analysis-table td:nth-child(3){font-size:15px}.importance-track{width:100%;min-width:0;height:9px}}
 
 
@@ -85,17 +89,17 @@
 
     <section class="metrics" aria-label="Dataset overview" id="overviewMetrics"></section>
     <section class="chapter-analysis" aria-labelledby="chapterAnalysisHeading">
-      <div class="section-head"><div><h2 id="chapterAnalysisHeading">All-Chapter Analysis &amp; Study Order</h2><p>One combined total for the listed M (Medical) and D (Dental) year entries in each chapter.</p></div></div>
+      <div class="section-head"><div><h2 id="chapterAnalysisHeading">All-Chapter Analysis &amp; Study Order</h2><p>Chapter-wise question counts supplied for Chapters 1–5, ranked from highest to lowest.</p></div></div>
       <div class="analysis-wrap">
         <table class="analysis-table">
-          <thead><tr><th scope="col">Study order</th><th scope="col">Chapter</th><th scope="col">Total M + D entries</th><th scope="col">Importance</th></tr></thead>
+          <thead><tr><th scope="col">Study order</th><th scope="col">Chapter</th><th scope="col">Total questions</th><th scope="col">Importance</th></tr></thead>
           <tbody id="chapterAnalysisRows"></tbody>
         </table>
       </div>
-      <p class="analysis-note">Counting rule: totals add the year labels that are actually listed under M and D across the chapter’s topics. Repeated labels are retained. These totals represent <strong>listed year entries</strong>, not independently verified distinct exam-question counts. A missing year list remains unlisted, not zero. Study order is relative to the five chapters in this source.</p>
+      <p class="analysis-note"><strong>Counting basis:</strong> these chapter-wise question counts were supplied separately (Ch. 1–5: 34, 70, 85, 63, 33). The study order and importance bars are calculated from these counts. The detailed topic records and historical M/D year lists elsewhere on this page remain unchanged.</p>
     </section>
 
-    <div class="section-head"><div><h2>Explore chapters</h2><p>Select a chapter to see its topic distribution, ratings, and source year lists.</p></div><span class="pill" id="chapterResultPill">5 chapters</span></div>
+    <div class="section-head" id="exploreChaptersSection"><div><h2>Explore chapters</h2><p>Select a chapter to see its topic distribution, ratings, and source year lists.</p></div><span class="pill" id="chapterResultPill">5 chapters</span></div>
     <section class="chapter-grid" id="chapterGrid" aria-label="Chapters"></section>
     <div id="chapterEmpty" class="empty-state hidden"><strong>No matching chapters</strong>Try a different chapter or topic search.</div>
 
@@ -232,14 +236,15 @@ function ratingFor(t){return state.ratings.get(t.id)||{tier:'unknown',stars:null
 function starsText(r){if(r.stars===null)return '☆☆☆☆☆';return '★'.repeat(r.stars)+'☆'.repeat(5-r.stars);}
 function starAria(r){return r.stars===null?'Rating unknown; M years not listed':`${r.stars} out of 5 stars`;}
 function renderChapterAnalysis(){
- const rows=DATA.chapters.map(ch=>({
-  chapter:ch,
-  total:ch.topics.reduce((sum,t)=>sum+(Array.isArray(t.medicalYears)?t.medicalYears.length:0)+(Array.isArray(t.dentalYears)?t.dentalYears.length:0),0)
- })).sort((a,b)=>b.total-a.total||a.chapter.number-b.chapter.number);
+ // Chapter-wise question counts supplied by the user; detailed topic-history data stays unchanged.
+ const questionCounts={1:34,2:70,3:85,4:63,5:33};
+ const rows=DATA.chapters.map(ch=>({chapter:ch,total:questionCounts[ch.number]}))
+  .filter(row=>Number.isFinite(row.total))
+  .sort((a,b)=>b.total-a.total||a.chapter.number-b.chapter.number);
  const maxTotal=Math.max(1,...rows.map(row=>row.total));
  $('#chapterAnalysisRows').innerHTML=rows.map((row,index)=>{
   const importance=Math.max(0,Math.min(100,(row.total/maxTotal)*100));
-  return `<tr><td>#${index+1}</td><td><button type="button" class="chapter-analysis-link" data-open-chapter="${esc(row.chapter.id)}" lang="bn" aria-label="Open analysis for Chapter ${row.chapter.number}">Chapter ${row.chapter.number} — ${esc(row.chapter.name)} ↗</button></td><td class="analysis-total">${row.total}</td><td class="importance-cell"><div class="importance-track" role="img" aria-label="Chapter ${row.chapter.number}: ${row.total} combined listed M and D year entries; ${Math.round(importance)} percent of the highest chapter total" title="${row.total} combined listed M + D year entries"><span class="importance-fill" style="width:${importance.toFixed(1)}%"></span></div></td></tr>`;
+  return `<tr><td>#${index+1}</td><td><button type="button" class="chapter-analysis-link" data-jump-chapter="${esc(row.chapter.id)}" lang="bn" aria-label="Find Chapter ${row.chapter.number} in Explore chapters">Chapter ${row.chapter.number} — ${esc(row.chapter.name)} ↗</button></td><td class="analysis-total">${row.total}</td><td class="importance-cell"><div class="importance-track" role="img" aria-label="Chapter ${row.chapter.number}: ${row.total} questions; ${Math.round(importance)} percent of the highest chapter count" title="${row.total} questions"><span class="importance-fill" style="width:${importance.toFixed(1)}%"></span></div></td></tr>`;
  }).join('');
 }
 function renderOverview(){
@@ -260,6 +265,23 @@ function renderChapters(){
  computeRatingsForOpenChapter();
 }
 function computeRatingsForOpenChapter(){const ch=currentChapter();if(ch)computeRatings(ch);}
+function jumpToExploreChapter(id){
+ const search=$('#chapterSearch');
+ // Clear a dashboard filter so the requested chapter is always present in the list.
+ if(search.value.trim()){search.value='';renderChapters();}
+ const card=Array.from($('#chapterGrid').querySelectorAll('.chapter-card')).find(el=>el.dataset.openChapter===id);
+ if(!card)return;
+ card.classList.remove('is-highlighted');
+ // Restart the short highlight animation when the same chapter is clicked again.
+ void card.offsetWidth;
+ card.classList.add('is-highlighted');
+ card.setAttribute('aria-current','true');
+ $('#exploreChaptersSection').scrollIntoView({behavior:'smooth',block:'start'});
+ // Bring the selected card into view as well, especially on narrow screens.
+ card.scrollIntoView({behavior:'smooth',block:'center'});
+ card.focus({preventScroll:true});
+ window.setTimeout(()=>{card.classList.remove('is-highlighted');card.removeAttribute('aria-current');},1800);
+}
 function openChapter(id){const ch=DATA.chapters.find(c=>c.id===id);if(!ch)return;state.chapterId=id;const cfg=state.chapterConfig.get(id)||{method:'adaptive',highShare:15,midShare:5,manualHigh:5,manualMid:2};state.method=cfg.method;$('#methodSelect').value=cfg.method;$('#highShare').value=String(cfg.highShare);$('#midShare').value=String(cfg.midShare);$('#manualHigh').value=String(cfg.manualHigh);$('#manualMid').value=String(cfg.manualMid);state.sort=$('#sortBy')?.value||'source';state.filter=$('#filterBy')?.value||'all';state.topicSearch='';$('#topicSearch').value='';$('#sortBy').value='source';$('#filterBy').value='all';$('#dashboardView').classList.add('hidden');$('#chapterView').classList.remove('hidden');$('#auditPanel').classList.add('hidden');renderChapter();window.scrollTo({top:0,behavior:'smooth'});}
 function renderChapter(){const ch=currentChapter();if(!ch)return;$('#crumbChapter').textContent=`Chapter ${ch.number}`;$('#chapterEyebrow').textContent=`CHAPTER ${String(ch.number).padStart(2,'0')} · PDF PAGE ${ch.sourcePage}`;$('#chapterTitle').textContent=ch.name;$('#chapterTitle').setAttribute('lang','bn');$('#chapterDescription').textContent='Priority ratings are relative to the available M-year entries in this chapter. Dental (D) year lists are preserved separately.';
  const ratings=computeRatings(ch);const known=ch.topics.filter(countable);const sum=known.reduce((s,t)=>s+t.medicalCount,0);const positives=known.filter(t=>t.medicalCount>0);const highs=ch.topics.filter(t=>ratings.get(t.id)?.tier==='high').length;const zeros=known.filter(t=>t.medicalCount===0).length;const unknown=ch.topics.filter(t=>!countable(t)).length;const highPct=ch.topics.length?100*highs/ch.topics.length:0;
@@ -303,7 +325,7 @@ function toggleTheme(){const next=document.documentElement.dataset.theme==='ligh
 // Dataset sanity checks: failures are surfaced in the audit, not hidden.
 function runtimeChecks(){const ids=allTopics.map(t=>t.id);const ok=new Set(ids).size===ids.length&&DATA.chapters.every(ch=>ch.topics.every(t=>t.sourcePage===ch.sourcePage&&(t.medicalCount===null?t.medicalYears===null:t.medicalCount===t.medicalYears.length)&&(t.dentalCount===null?t.dentalYears===null:t.dentalCount===t.dentalYears.length)));if(!ok)console.error('Dataset integrity check failed.');return ok;}
 // Delegated events keep controls alive across redraws.
-document.addEventListener('click',e=>{const opener=e.target.closest('[data-open-chapter]');if(opener){openChapter(opener.dataset.openChapter);return;}if(e.target.closest('#backHome')){showDashboard();return;}if(e.target.closest('#themeToggle')){toggleTheme();return;}if(e.target.closest('#downloadJson')||e.target.closest('#downloadFullData')){downloadJson();return;}if(e.target.closest('#downloadAudit')){downloadAudit();return;}if(e.target.closest('#viewAuditTop')){showAudit();return;}if(e.target.closest('#closeAudit')){$('#auditPanel').classList.add('hidden');return;}if(e.target.closest('#printChapter')){window.print();return;}if(e.target.closest('#exportCsv')){exportChapterCsv();return;}if(e.target.closest('#resetFilters')){$('#topicSearch').value='';$('#sortBy').value='source';$('#filterBy').value='all';state.sort='source';state.filter='all';renderTopicList();return;}if(e.target.closest('#clearStudy')){const ch=currentChapter();if(ch)ch.topics.forEach(t=>state.reviewed.delete(t.id));renderStudyChecklist();renderTopicList();notify('Study checkmarks cleared for this chapter.');return;}});
+document.addEventListener('click',e=>{const jump=e.target.closest('[data-jump-chapter]');if(jump){jumpToExploreChapter(jump.dataset.jumpChapter);return;}const opener=e.target.closest('[data-open-chapter]');if(opener){openChapter(opener.dataset.openChapter);return;}if(e.target.closest('#backHome')){showDashboard();return;}if(e.target.closest('#themeToggle')){toggleTheme();return;}if(e.target.closest('#downloadJson')||e.target.closest('#downloadFullData')){downloadJson();return;}if(e.target.closest('#downloadAudit')){downloadAudit();return;}if(e.target.closest('#viewAuditTop')){showAudit();return;}if(e.target.closest('#closeAudit')){$('#auditPanel').classList.add('hidden');return;}if(e.target.closest('#printChapter')){window.print();return;}if(e.target.closest('#exportCsv')){exportChapterCsv();return;}if(e.target.closest('#resetFilters')){$('#topicSearch').value='';$('#sortBy').value='source';$('#filterBy').value='all';state.sort='source';state.filter='all';renderTopicList();return;}if(e.target.closest('#clearStudy')){const ch=currentChapter();if(ch)ch.topics.forEach(t=>state.reviewed.delete(t.id));renderStudyChecklist();renderTopicList();notify('Study checkmarks cleared for this chapter.');return;}});
 document.addEventListener('input',e=>{if(e.target.id==='chapterSearch'){renderChapters();}if(e.target.id==='topicSearch'){renderTopicList();}if(['highShare','midShare','manualHigh','manualMid'].includes(e.target.id)){if(currentChapter()){saveCurrentConfigFromControls();renderChapter();}}});
 document.addEventListener('change',e=>{if(e.target.id==='sortBy'){state.sort=e.target.value;renderTopicList();}if(e.target.id==='filterBy'){state.filter=e.target.value;renderTopicList();}if(e.target.id==='methodSelect'){saveCurrentConfigFromControls();rerate();}if(e.target.matches('[data-review]')){if(e.target.checked)state.reviewed.add(e.target.dataset.review);else state.reviewed.delete(e.target.dataset.review);renderStudyChecklist();renderTopicList();}});
 restoreTheme();$('#themeToggle').textContent=document.documentElement.dataset.theme==='light'?'☾':'☼';$('#themeToggle').setAttribute('aria-label',document.documentElement.dataset.theme==='light'?'Switch to dark theme':'Switch to light theme');renderOverview();renderChapterAnalysis();renderChapters();runtimeChecks();
